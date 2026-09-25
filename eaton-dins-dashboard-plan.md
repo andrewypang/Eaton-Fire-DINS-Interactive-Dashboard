@@ -70,8 +70,8 @@ Create the folder structure, the entry HTML file, and the data-fetch module. Fet
 - [ ] Create `js/constants.js` with `DAMAGE_COLORS`, `DAMAGE_ORDER`, `ARCGIS_BASE`, `PAGE_SIZE`, `TABLE_PAGE_SIZE`.
 - [ ] Create `js/fetch.js` with `fetchAllDINS(onProgress)`:
   - Query `https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/ArcGIS/rest/services/DINS_2025_Eaton_Public_View/FeatureServer/0/query`
-  - Parameters: `where=1=1`, `outFields=OBJECTID,GLOBALID,DAMAGE,STRUCTURETYPE`, `f=geojson`, `resultOffset`, `resultRecordCount=2000`
-  - First fetch the total count via `returnCountOnly=true`; compute all page offsets up front
+  - Page requests use: `where=1=1`, `outFields=OBJECTID,GLOBALID,DAMAGE,STRUCTURETYPE`, `f=geojson`, `resultOffset`, `resultRecordCount=2000`
+  - **Count request must use `f=json`, not `f=geojson`** — ArcGIS returns `{ "count": N }` with `f=json`; with `f=geojson` it returns a FeatureCollection where `json.count` is `undefined`, causing `total` to be `NaN` and zero pages to be fetched. Pass `{ returnCountOnly: 'true', f: 'json' }` to override the default `f=geojson` for that one call only.
   - Fire all page requests concurrently with `Promise.all` — do **not** use a serial `while` loop
   - Flatten pages in offset order with `flatMap`
   - Return merged GeoJSON FeatureCollection
@@ -452,3 +452,5 @@ No `node_modules`, no `package.json`, no build step.
 - **Chart.js destroy/recreate**: Call `chart.destroy()` and set the instance to `null` before recreating a chart on the same canvas, or Chart.js throws a "Canvas is already in use" error.
 
 - **Do not mutate `allFeatures`**: The state module holds a single source of truth. `getFiltered()` always produces a new array from `_allFeatures` — never modifies it in place.
+
+- **`f=json` for `returnCountOnly`**: The shared `BASE_PARAMS` object sets `f: 'geojson'` for all requests. The count query must explicitly override this with `f: 'json'` — e.g. `buildParams({ returnCountOnly: 'true', f: 'json' })`. ArcGIS only returns the plain `{ "count": N }` object when `f=json`; with `f=geojson` it returns a `FeatureCollection` shell and `json.count` is `undefined`. This causes `total = NaN`, the page-offset loop never runs, and the entire dataset silently goes unfetched.
